@@ -1,6 +1,4 @@
 use crate::algorithms::traits::{GreedyState, SelectionStrategy};
-use crate::problem::instance;
-use crate::problem::solution::Placement;
 use super::rect::Rect;
 use super::solution::{RectangleSolution, BoxBin};
 use super::instance::Instance;

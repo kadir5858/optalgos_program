@@ -33,6 +33,21 @@ impl Placement {
         let intersects = !(r1_x2 <= other.x || r2_x2 <= self.x || r1_y2 <= other.y || r2_y2 <= self.y);
         intersects
     }
+
+    pub fn intersection_area(&self, other: &Placement) -> u32 {
+        // Determine coordinates of intersection rectangle
+        let x_overlap_start = self.x.max(other.x);
+        let x_overlap_end = (self.x + self.width()).min(other.x + other.width());
+        let y_overlap_start = self.y.max(other.y);
+        let y_overlap_end = (self.y + self.height()).min(other.y + other.height());
+        // Check if overlap exists
+        if x_overlap_start < x_overlap_end && y_overlap_start < y_overlap_end {
+            let width = x_overlap_end - x_overlap_start;
+            let height = y_overlap_end - y_overlap_start;
+            return width * height;
+        }
+        0
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -111,16 +126,25 @@ impl BoxBin {
     }
 }
 
-
+/// Solution for both Greedy selection strategies, geometric Local Search 
+/// and Local Search with overlaping
 #[derive(Clone, Debug)]
 pub struct RectangleSolution {
     pub instance: Instance,
-    pub boxes: Vec<BoxBin>
+    pub boxes: Vec<BoxBin>,
+    // Penalty for overlaping mode
+    pub penalty_factor: Option<i64>,
 }
 
 impl RectangleSolution {
+    // Standard constructor
     pub fn new(instance: Instance) -> Self {
-        Self { instance, boxes: Vec::new() }
+        Self { instance, boxes: Vec::new(), penalty_factor: None }
+    }
+    // Constructor for overlaping mode
+    pub fn with_penalty(mut self,factor: i64) -> Self {
+        self.penalty_factor = Some(factor);
+        self
     }
 }
 
@@ -130,18 +154,44 @@ impl Solution for RectangleSolution {
 
     fn cost(&self) -> Self::Cost {
         let num_boxes = self.boxes.len();
-
         // Score: sum of squares of used area in each box
         let mut score: i64 = 0;
-        for b in &self.boxes {
-            let used_area: u32 = b.placements.iter().map(|p| p.rect.area()).sum();
-            score += (used_area as i64).pow(2);
+        // Case distinction for overlaping and standard cost calculation
+        if let Some(penalty_factor) = self.penalty_factor {
+            let mut total_penalty: i64 = 0;
+            let mut density_score: i64 = 0;
+
+            for bin in &self.boxes {
+                // Calculate overlaping
+                let mut bin_penalty = 0;
+                for i in 0..bin.placements.len() {
+                    for j in (i+1)..bin.placements.len() {
+                        let intersect = bin.placements[i].intersection_area(&bin.placements[j]);
+                        if intersect > 0 {
+                            bin_penalty += intersect as i64;
+                        }
+                    }
+                }
+                total_penalty += bin_penalty;
+                // Negative density score
+                let used_area: u32 = bin.placements.iter().map(|p| p.rect.area()).sum();
+                density_score -= (used_area as i64).pow(2);
+            }
+            // Score = (Penalty * Factor) + Density
+            score = (total_penalty * penalty_factor) + density_score;
+
+        } else {
+            for b in &self.boxes {
+                let used_area: u32 = b.placements.iter().map(|p| p.rect.area()).sum();
+                score -= (used_area as i64).pow(2);
+            }
         }
-        (num_boxes, -score)
+
+        (num_boxes, score)
     }
 }
 
-
+/// Solution for rule based Local Search
 #[derive(Clone, Debug)]
 pub struct PermutationSolution {
     pub instance: Instance,
@@ -186,3 +236,4 @@ impl Solution for PermutationSolution {
         (num_boxes, -score)
     }
 }
+
