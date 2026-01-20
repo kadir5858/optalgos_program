@@ -1,8 +1,11 @@
-use crate::algorithms::traits::Neighborhood;
-use super::solution::{RectangleSolution, BoxBin, Placement};
-use super::rect::Rect;
-use std::collections::HashSet;
+use crate::algorithms::traits::{Neighborhood};
+use super::solution::{RectangleSolution, PermutationSolution, Placement};
+use rand::seq::SliceRandom;
+use rand::{Rng, rng};
 
+// ---------------------------------------------------------
+// Geometric Neighborhood
+// ---------------------------------------------------------
 pub struct GeometricNeighborhood;
 
 impl Neighborhood<RectangleSolution> for GeometricNeighborhood {
@@ -17,7 +20,7 @@ impl Neighborhood<RectangleSolution> for GeometricNeighborhood {
                         return None;
                     }
                     // Check if rectangle fit in target box
-                    if let Some((x, y, rotated)) = find_position_in_box(tgt_box, rect) {
+                    if let Some((x, y, rotated)) = tgt_box.find_position_in_box(rect) {
                         // Create new neighbor
                         let mut new_solution = solution.clone();
                         // Remove rectangle from source box 
@@ -39,49 +42,57 @@ impl Neighborhood<RectangleSolution> for GeometricNeighborhood {
     }
 }
 
-fn find_position_in_box(bin: &BoxBin, rect: Rect) -> Option<(u32, u32, bool)> {
-    // Collect candidates (origin + edges of existing rectangles)
-    let mut candidates = HashSet::new();
-    candidates.insert((0, 0));
+// ---------------------------------------------------------
+// Rule based Neighborhood
+// ---------------------------------------------------------
+pub struct RuleBasedNeighborhood {
+    // Optional tuning parameter to reduce neighbors
+    pub max_swaps: Option<usize>,
+}
 
-    for p in &bin.placements {
-        let c1 = (p.x + p.width(), p.y);    // Right bottom of p
-        let c2 = (p.x, p.y + p.height());   // Left top of p
-        
-        if c1.0 < bin.capacity && c1.1 < bin.capacity { candidates.insert(c1); }
-        if c2.0 < bin.capacity && c1.1 < bin.capacity { candidates.insert(c2); }
+impl RuleBasedNeighborhood {
+    pub fn new(max_swaps: Option<usize>) -> Self {
+        Self { max_swaps }
     }
-    // Sort candidates by bottom-left heuristic
-    let mut sorted_candidates: Vec<(u32, u32)> = candidates.into_iter().collect();
-    sorted_candidates.sort_by(|a, b| {
-        if a.1 != b.1 { 
-            a.1.cmp(&b.1) 
+}
+
+impl Neighborhood<PermutationSolution> for RuleBasedNeighborhood {
+    fn neighbors<'a>(&'a self, solution: &'a PermutationSolution) -> Box<dyn Iterator<Item = PermutationSolution> + 'a> {
+        let n = solution.sequence.len();
+        if n < 2 {
+            return Box::new(std::iter::empty());
+        }
+        // Random selection of neighbors if k is set
+        if let Some(k) = self.max_swaps {
+            let mut rng = rng();
+            let mut neighbors = Vec::with_capacity(k);
+
+            for _ in 0..k {
+                // Select two random idxs
+                let i = rng.random_range(0..n);
+                let j = rng.random_range(0..n);
+
+                if i != j {
+                    let mut new_sol = solution.clone();
+                    new_sol.sequence.swap(i, j);
+                    neighbors.push(new_sol);
+                }
+            }
+            return Box::new(neighbors.into_iter());
         } else {
-            a.0.cmp(&b.0)
+            // Without k
+            let moves = (0..n).flat_map(move |i| {
+                (i + 1..n).map(move |j| {
+                    let mut new_sol = solution.clone();
+                    new_sol.sequence.swap(i, j);
+                    new_sol
+                })
+            });
+            return Box::new(moves);
         }
-    });
-    // Check candidates
-    for (x, y) in sorted_candidates {
-        if can_place(bin, rect, x, y, false) { return Some((x, y, false)); } 
-        if can_place(bin, rect, x, y, true) { return Some((x, y, true)); }
     }
-    None    
 }
 
-// Checks if rectangles on position x, y can placed correctly
-fn can_place(bin: &BoxBin, rect: Rect, x: u32, y: u32, rotated: bool) -> bool {
-    let w = if rotated { rect.height } else { rect.width };
-    let h = if rotated { rect.width } else { rect.height };
-    // Boundary check
-    if x + w > bin.capacity || y + h > bin.capacity {
-        return false;
-    }
-    // Intersection check
-    let candidate = Placement { rect, x, y, rotated };
-    for existing in &bin.placements {
-        if candidate.intersects(existing) {
-            return false;
-        }
-    }
-    true
-}
+// ---------------------------------------------------------
+// Geometric Neighborhood with Overlaping
+// ---------------------------------------------------------

@@ -7,18 +7,19 @@ where
 {
     loop {
         let current_cost = current.cost();
-        let mut found_improvement = false;
+        let mut improved_solution = None;
         // Search in neighborhood
         for neighbor in neighborhood.neighbors(&current) {
             // First Improvement
             if neighbor.cost() < current_cost {
-                current = neighbor;
-                found_improvement = true;
+                improved_solution = Some(neighbor);
                 break;
             }
         }
-
-        if !found_improvement {
+        // Apply improvement if found
+        if let Some(improvement) = improved_solution {
+            current = improvement;
+        } else {
             break;
         }
     }

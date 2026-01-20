@@ -1,6 +1,8 @@
 use super::rect::Rect;
 use super::instance::Instance;
 use crate::algorithms::traits::Solution;
+use std::collections::HashSet;
+
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub struct Placement {
@@ -61,7 +63,54 @@ impl BoxBin {
         true
     }
 
+    pub fn find_position_in_box(&self, rect: Rect) -> Option<(u32, u32, bool)> {
+        // Collect candidates (origin + edges of existing rectangles)
+        let mut candidates = HashSet::new();
+        candidates.insert((0, 0));
+
+        for p in &self.placements {
+            let c1 = (p.x + p.width(), p.y);    // Right bottom of p
+            let c2 = (p.x, p.y + p.height());   // Left top of p
+            
+            if c1.0 < self.capacity && c1.1 < self.capacity { candidates.insert(c1); }
+            if c2.0 < self.capacity && c2.1 < self.capacity { candidates.insert(c2); }
+        }
+        // Sort candidates by bottom-left heuristic
+        let mut sorted_candidates: Vec<(u32, u32)> = candidates.into_iter().collect();
+        sorted_candidates.sort_by(|a, b| {
+            if a.1 != b.1 { 
+                a.1.cmp(&b.1) 
+            } else {
+                a.0.cmp(&b.0)
+            }
+        });
+        // Check candidates
+        for (x, y) in sorted_candidates {
+            if self.can_place(rect, x, y, false) { return Some((x, y, false)); } 
+            if self.can_place(rect, x, y, true) { return Some((x, y, true)); }
+        }
+        None    
+    }
+
+    // Checks if rectangles on position x, y can placed correctly
+    fn can_place(&self, rect: Rect, x: u32, y: u32, rotated: bool) -> bool {
+        let w = if rotated { rect.height } else { rect.width };
+        let h = if rotated { rect.width } else { rect.height };
+        // Boundary check
+        if x + w > self.capacity || y + h > self.capacity {
+            return false;
+        }
+        // Intersection check
+        let candidate = Placement { rect, x, y, rotated };
+        for existing in &self.placements {
+            if candidate.intersects(&existing) {
+                return false;
+            }
+        }
+        true
+    }
 }
+
 
 #[derive(Clone, Debug)]
 pub struct RectangleSolution {
@@ -85,6 +134,52 @@ impl Solution for RectangleSolution {
         // Score: sum of squares of used area in each box
         let mut score: i64 = 0;
         for b in &self.boxes {
+            let used_area: u32 = b.placements.iter().map(|p| p.rect.area()).sum();
+            score += (used_area as i64).pow(2);
+        }
+        (num_boxes, -score)
+    }
+}
+
+
+#[derive(Clone, Debug)]
+pub struct PermutationSolution {
+    pub instance: Instance,
+    pub sequence: Vec<Rect>,
+}
+
+impl PermutationSolution {
+    pub fn new(instance: Instance, sequence: Vec<Rect>) -> Self {
+        Self { instance, sequence }
+    }
+}
+
+impl Solution for PermutationSolution {
+    type Cost = (usize, i64);
+
+    fn cost(&self) -> Self::Cost {
+        let mut boxes: Vec<BoxBin> = Vec::new();
+        let box_size = self.instance.box_size;
+
+        for &rect in &self.sequence {
+            let mut placed = false;
+            
+            for bin in boxes.iter_mut() {
+                if let Some((x, y, rotated)) = bin.find_position_in_box(rect) {
+                    bin.placements.push(Placement { rect, x, y, rotated });
+                    placed = true;
+                    break;
+                }
+            }
+            if !placed {
+                let mut new_bin = BoxBin::new(box_size);
+                new_bin.placements.push(Placement { rect, x: 0, y: 0, rotated: false });
+                boxes.push(new_bin);
+            }
+        }
+        let num_boxes = boxes.len();
+        let mut score: i64 = 0;
+        for b in &boxes {
             let used_area: u32 = b.placements.iter().map(|p| p.rect.area()).sum();
             score += (used_area as i64).pow(2);
         }
