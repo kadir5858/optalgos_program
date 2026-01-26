@@ -177,17 +177,20 @@ impl Solution for RectangleSolution {
                 let used_area: u32 = bin.placements.iter().map(|p| p.rect.area()).sum();
                 density_score -= (used_area as i64).pow(2);
             }
-            // Score = (Penalty * Factor) + Density
-            score = (total_penalty * penalty_factor) + density_score;
+            // Dynamic Weighting: Weight must be > max possible density score (L^4)
+            // to ensure box reduction is prioritized over density.
+            let box_weight = (self.instance.box_size as i64).pow(4) + 1;
+            score = total_penalty * penalty_factor + density_score + (num_boxes as i64) * box_weight;
 
+            (0, score)
         } else {
             for b in &self.boxes {
                 let used_area: u32 = b.placements.iter().map(|p| p.rect.area()).sum();
                 score -= (used_area as i64).pow(2);
             }
+            (num_boxes, score)
         }
 
-        (num_boxes, score)
     }
 }
 

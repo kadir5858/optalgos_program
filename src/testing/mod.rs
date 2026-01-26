@@ -20,12 +20,10 @@ pub struct TestConfig {
 
 /// Run testsuite with given configuration
 pub fn run_suite(configs: &[TestConfig]) {
-    println!("\n=======================================================");
     println!("Start Test Suite");
-    println!("=======================================================");
     
     for config in configs {
-        println!("\nConfiguration: {} Rectangles, Box-Size L={}, Rectangle Ranges (width-height) {:?}-{:?}", 
+        println!("\nConfiguration: {} Rectangles, Box-Size L={}, Rectangle Ranges (width)-(height) {:?}-{:?}", 
             config.num_rects, config.box_size, config.width_range, config.height_range);
         println!("Number Instances: {}", config.num_instances);
         

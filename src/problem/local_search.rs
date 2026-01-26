@@ -4,6 +4,7 @@ use super::rect::Rect;
 use rand::{Rng, rng};
 use core::panic;
 use std::collections::HashSet;
+use std::iter::once_with;
 
 // ---------------------------------------------------------
 // Geometric Neighborhood
@@ -111,7 +112,8 @@ impl Neighborhood<RectangleSolution> for OverlappingNeighborhood {
             src_box.placements.iter().enumerate().flat_map(move |(p_idx, placement)| {
                 let rect = placement.rect;
 
-                solution.boxes.iter().enumerate().filter_map(move |(tgt_idx, tgt_box)| {
+                // Move rectangle in existing box
+                let existing_box_moves = solution.boxes.iter().enumerate().filter_map(move |(tgt_idx, tgt_box)| {
                     if src_idx == tgt_idx { return None; }
                     // Search position with allowed overlap
                     if let Some((x, y, rotated)) = find_position_with_overlap(tgt_box, rect, self.max_overlap_percent) {
@@ -127,14 +129,33 @@ impl Neighborhood<RectangleSolution> for OverlappingNeighborhood {
                         return Some(new_sol);
                     }
                     None
-                })
+                });
+                // Create new box and place rectangle left-bottom
+                // Once with creates iterator with only one element
+                let new_box_move = once_with(move || {
+                    let mut new_sol = solution.clone();
+                    // Remove from source box
+                    new_sol.boxes[src_idx].placements.swap_remove(p_idx);
+                    if new_sol.boxes[src_idx].placements.is_empty() {
+                         new_sol.boxes.swap_remove(src_idx);
+                    }
+                    // Create new box and place rectangle
+                    let mut new_bin = BoxBin::new(solution.instance.box_size);
+                    new_bin.try_place(rect, 0, 0, false);
+                    new_sol.boxes.push(new_bin);
+                    
+                    Some(new_sol)
+                }).flatten();
+
+                // Combine both iterators, Local Search will first use all exisitng box neighbors
+                // before trying new box
+                existing_box_moves.chain(new_box_move)
             })
         });
 
         Box::new(moves)
     }
 }
-
 
 fn find_position_with_overlap(bin: &BoxBin, rect: Rect, max_overlap_percent: f64) -> Option<(u32, u32, bool)> {
     // Create candidates

@@ -1,10 +1,7 @@
 use optalgos_program::testing::{self, TestConfig};
 
 fn main() {
-    println!("=== OptAlgos Program Test Suite ===");
-
-    // Small Instances
-    println!("\n>>> Mode 1: Small Instances");
+    println!("\n>>> Small Instances");
     let tests_demo = vec![
         TestConfig {
             num_instances: 5,
@@ -23,8 +20,7 @@ fn main() {
     ];
     testing::run_suite(&tests_demo);
 
-    // Big Instances for protocol
-    println!("\n>>> Mode 2: Big Instances)");    
+    println!("\n>>> Big Instances");    
     let tests_large = vec![
          TestConfig {
             num_instances: 3,
@@ -34,7 +30,6 @@ fn main() {
             box_size: 150,
         },
         TestConfig {
-            // 1000 Rect test
             num_instances: 1,
             num_rects: 1000,
             width_range: (10, 80),
